@@ -166,6 +166,40 @@ function getOrganicFertilizerTargetsFromLands(lands) {
     return targets;
 }
 
+/** 快成熟地块（普通肥）：与 getFastMatureLands 相同的时间窗，不检查有机肥剩余次数 */
+function getFastMatureNormalTargets(lands, thresholdSec = 300) {
+    const list = Array.isArray(lands) ? lands : [];
+    const targets = [];
+    const nowSec = getServerTimeSec();
+    const threshold = Math.max(0, toNum(thresholdSec) || 300);
+
+    for (const land of list) {
+        if (!land || !land.unlocked) continue;
+        const landId = toNum(land.id);
+        if (!landId) continue;
+
+        const plant = land.plant;
+        if (!plant || !plant.phases || plant.phases.length === 0) continue;
+        const currentPhase = getCurrentPhase(plant.phases);
+        if (!currentPhase) continue;
+        if (currentPhase.phase === PlantPhase.DEAD) continue;
+        if (currentPhase.phase === PlantPhase.MATURE) continue;
+
+        const maturePhase = plant.phases.find(p => toNum(p.phase) === PlantPhase.MATURE);
+        if (!maturePhase) continue;
+
+        const matureBeginTime = toTimeSec(maturePhase.begin_time);
+        if (matureBeginTime <= 0) continue;
+
+        const timeToMature = matureBeginTime - nowSec;
+
+        if (timeToMature <= threshold && timeToMature >= 0) {
+            targets.push(landId);
+        }
+    }
+    return targets;
+}
+
 function getFastMatureLands(lands, thresholdSec = 300) {
     const list = Array.isArray(lands) ? lands : [];
     const targets = [];
@@ -371,7 +405,7 @@ async function runFertilizerByConfig(plantedLands = [], options = {}) {
 
     const { skipNormal = false } = options;
 
-    if (planted.length === 0 && fertilizerConfig !== 'organic' && fertilizerConfig !== 'both' && fertilizerConfig !== 'smart') {
+    if (planted.length === 0 && fertilizerConfig !== 'organic' && fertilizerConfig !== 'both' && fertilizerConfig !== 'smart' && fertilizerConfig !== 'fast_normal') {
         return { normal: 0, organic: 0 };
     }
     let latestLands = [];
@@ -406,8 +440,18 @@ async function runFertilizerByConfig(plantedLands = [], options = {}) {
         return { normal: 0, organic: 0 };
     }
 
+    const smartSeconds = toNum(automation.fertilizer_smart_seconds) || 300;
     let normalTargets = planted;
-    if (landTypeById.size > 0) {
+    if (fertilizerConfig === 'fast_normal') {
+        let fastIds = getFastMatureNormalTargets(latestLands, smartSeconds);
+        if (planted.length > 0) {
+            const plantedSet = new Set(planted);
+            fastIds = fastIds.filter(id => plantedSet.has(id));
+        }
+        normalTargets = landTypeById.size > 0
+            ? filterLandIdsByTypes(fastIds, landTypeById, selectedLandTypes)
+            : fastIds;
+    } else if (landTypeById.size > 0) {
         normalTargets = filterLandIdsByTypes(planted, landTypeById, selectedLandTypes);
     }
 
@@ -415,7 +459,7 @@ async function runFertilizerByConfig(plantedLands = [], options = {}) {
     let fertilizedOrganic = 0;
 
 
-    if (!skipNormal && (fertilizerConfig === 'normal' || fertilizerConfig === 'both' || fertilizerConfig === 'smart') && normalTargets.length > 0) {
+    if (!skipNormal && (fertilizerConfig === 'normal' || fertilizerConfig === 'both' || fertilizerConfig === 'smart' || fertilizerConfig === 'fast_normal') && normalTargets.length > 0) {
         fertilizedNormal = await fertilize(normalTargets, NORMAL_FERTILIZER_ID);
         if (fertilizedNormal > 0) {
             log('施肥', `${reasonLabel}：已为 ${fertilizedNormal}/${normalTargets.length} 块地施普通化肥（范围: ${selectedLandTypeNames.join('、')}）`, {
@@ -457,7 +501,6 @@ async function runFertilizerByConfig(plantedLands = [], options = {}) {
     }
     else if (fertilizerConfig === 'smart') {
         let organicTargets = [];
-        const smartSeconds = toNum(automation.fertilizer_smart_seconds) || 300;
         try {
             const latest = await getAllLands();
             organicTargets = getFastMatureLands(latest && latest.lands, smartSeconds);
@@ -1624,6 +1667,15 @@ async function runFarmOperation(opType) {
                 const result = await runFertilizerByConfig([], { skipNormal: true });
                 if (result.organic > 0) {
                     actions.push(`有机肥${result.organic}`);
+                }
+            } catch (e) {
+                logWarn('施肥', `巡田时施肥失败: ${e.message}`);
+            }
+        } else if (fertilizerConfig === 'fast_normal') {
+            try {
+                const result = await runFertilizerByConfig([]);
+                if (result.normal > 0) {
+                    actions.push(`普通肥${result.normal}`);
                 }
             } catch (e) {
                 logWarn('施肥', `巡田时施肥失败: ${e.message}`);

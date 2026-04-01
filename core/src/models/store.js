@@ -354,7 +354,7 @@ function normalizeAccountConfig(input, fallback = accountFallbackConfig) {
         for (const [k, v] of Object.entries(src.automation)) {
             if (!ALLOWED_AUTOMATION_KEYS.has(k)) continue;
             if (k === 'fertilizer') {
-                const allowed = ['both', 'normal', 'organic', 'smart', 'none'];
+                const allowed = ['both', 'normal', 'organic', 'smart', 'fast_normal', 'none'];
                 cfg.automation[k] = allowed.includes(v) ? v : cfg.automation[k];
             } else if (k === 'fertilizer_land_types') {
                 cfg.automation[k] = normalizeFertilizerLandTypes(v, cfg.automation[k]);
@@ -709,7 +709,7 @@ function applyConfigSnapshot(snapshot, options = {}) {
         for (const [k, v] of Object.entries(cfg.automation)) {
             if (next.automation[k] === undefined) continue;
             if (k === 'fertilizer') {
-                const allowed = ['both', 'normal', 'organic', 'smart', 'none'];
+                const allowed = ['both', 'normal', 'organic', 'smart', 'fast_normal', 'none'];
                 next.automation[k] = allowed.includes(v) ? v : next.automation[k];
             } else if (k === 'fertilizer_land_types') {
                 next.automation[k] = normalizeFertilizerLandTypes(v, next.automation[k]);

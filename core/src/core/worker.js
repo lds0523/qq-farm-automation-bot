@@ -390,13 +390,16 @@ function applyRuntimeConfig(snapshot, syncNow = false) {
             const nextFertilizerMode = String(nextAuto && nextAuto.fertilizer ? nextAuto.fertilizer : '').toLowerCase();
             const fertilizerChanged = prevFertilizerMode !== nextFertilizerMode;
             // if (fertilizerChanged && (nextFertilizerMode === 'both' || nextFertilizerMode === 'organic')) {
-            if (fertilizerChanged && (nextFertilizerMode === 'both' || nextFertilizerMode === 'organic' || nextFertilizerMode === 'smart')) {
+            if (fertilizerChanged && (nextFertilizerMode === 'both' || nextFertilizerMode === 'organic' || nextFertilizerMode === 'smart' || nextFertilizerMode === 'fast_normal')) {
                 // 保存设置时 /api/automation 可能连续触发多次 config_sync，这里做防抖为一次立即施肥
                 workerScheduler.setTimeoutTask('fertilizer_immediate_after_save', 600, async () => {
                     if (!loginReady) return;
                     try {
-                        // await runFertilizerByConfig([]);
-                        await runFertilizerByConfig([], { skipNormal: true });
+                        if (nextFertilizerMode === 'fast_normal') {
+                            await runFertilizerByConfig([]);
+                        } else {
+                            await runFertilizerByConfig([], { skipNormal: true });
+                        }
                     } catch (e) {
                         log('施肥', `保存配置后立即施肥失败: ${e.message}`, {
                             module: 'farm',

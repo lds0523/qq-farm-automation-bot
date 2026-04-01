@@ -550,6 +550,7 @@ const localAutomationSettings = ref({
 const fertilizerOptions = [
   { label: '普通 + 有机', value: 'both' },
   { label: '普通 + 快成熟有机', value: 'smart' },
+  { label: '快成熟普通', value: 'fast_normal' },
   { label: '仅普通化肥', value: 'normal' },
   { label: '仅有机化肥', value: 'organic' },
   { label: '不施肥', value: 'none' },
@@ -1408,7 +1409,7 @@ async function handleTestOffline() {
                 />
               </div>
 
-              <div v-if="localAutomationSettings.automation.fertilizer === 'smart'" class="flex flex-wrap gap-4 rounded bg-amber-50 p-3 text-sm dark:bg-amber-900/20">
+              <div v-if="localAutomationSettings.automation.fertilizer === 'smart' || localAutomationSettings.automation.fertilizer === 'fast_normal'" class="flex flex-wrap gap-4 rounded bg-amber-50 p-3 text-sm dark:bg-amber-900/20">
                 <BaseInput
                   v-model.number="localAutomationSettings.automation.fertilizer_smart_seconds"
                   label="快成熟判定秒数"
@@ -1418,7 +1419,12 @@ async function handleTestOffline() {
                   class="w-40"
                 />
                 <span class="flex items-end pb-2 text-xs text-gray-500 dark:text-gray-400">
-                  距离成熟时间 ≤ 此秒数时施有机肥（默认300秒=5分钟）
+                  <template v-if="localAutomationSettings.automation.fertilizer === 'smart'">
+                    距离成熟时间 ≤ 此秒数时施有机肥（默认300秒=5分钟）
+                  </template>
+                  <template v-else>
+                    距离成熟时间 ≤ 此秒数时施普通化肥，每株仅一次（默认300秒=5分钟）
+                  </template>
                 </span>
               </div>
             </div>
