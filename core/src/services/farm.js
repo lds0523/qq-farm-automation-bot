@@ -523,6 +523,10 @@ async function runFertilizerByConfig(plantedLands = [], options = {}) {
         }
     }
 
+    if (fertilizerConfig === 'fast_normal' && fertilizedNormal > 0) {
+        await harvestMatureLandsAfterFastNormalFertilizer();
+    }
+
     return { normal: fertilizedNormal, organic: fertilizedOrganic };
 }
 
@@ -1357,6 +1361,40 @@ function analyzeLands(lands) {
     }
 
     return result;
+}
+
+/** 快成熟普通肥后立刻收获已成熟地块，缩短可被好友偷取的时间窗口 */
+async function harvestMatureLandsAfterFastNormalFertilizer() {
+    try {
+        const landsReply = await getAllLands();
+        const lands = landsReply.lands || [];
+        const status = analyzeLands(lands);
+        if (status.harvestable.length === 0) return 0;
+        await harvest(status.harvestable);
+        log('收获', `快成熟普通肥后补收 ${status.harvestable.length} 块`, {
+            module: 'farm',
+            event: '收获作物',
+            result: 'ok',
+            reason: 'fast_normal_followup',
+            count: status.harvestable.length,
+            landIds: [...status.harvestable],
+        });
+        recordOperation('harvest', status.harvestable.length);
+        networkEvents.emit('farmHarvested', {
+            count: status.harvestable.length,
+            landIds: [...status.harvestable],
+            opType: 'fast_normal_followup',
+        });
+        return status.harvestable.length;
+    } catch (e) {
+        logWarn('收获', `快成熟普通肥后补收失败: ${e.message}`, {
+            module: 'farm',
+            event: '收获作物',
+            result: 'error',
+            reason: 'fast_normal_followup',
+        });
+        return 0;
+    }
 }
 
 function buildLandMap(lands) {
